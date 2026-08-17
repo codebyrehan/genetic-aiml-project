@@ -71,3 +71,12 @@ def test_ecological_validation(client):
         "uncertainty": 0.2,
     })
     assert response.status_code == 400
+
+
+def test_regulatory_validation(client):
+    response = client.post("/api/regulatory-assessment", json={
+        "genetic_score": 101,
+        "ecological_score": 50,
+        "ethical_flags": 0,
+    })
+    assert response.status_code == 400
