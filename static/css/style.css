@@ -1,0 +1,3 @@
+/* Genova portfolio styles */
+.genova-map{width:100%;height:420px;min-height:320px;border-radius:18px;overflow:hidden;background:#0b171d}.map-panel{overflow:hidden}.map-legend{display:flex;gap:1.25rem;flex-wrap:wrap;padding:12px 4px 0;font-size:.82rem;color:var(--muted)}.map-fallback{height:100%;display:grid;place-items:center;padding:2rem;text-align:center;color:var(--muted)}
+@media (max-width:700px){.genova-map{height:340px;min-height:280px}.map-legend{gap:.75rem}}
