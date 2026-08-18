@@ -5,11 +5,14 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
 from src.clustering import summary as cluster_summary
+from src.dataset_studio import profile_csv
 from src.ecological_risk import assess_ecological_risk
+from src.model_intelligence import model_metrics
 from src.regulatory_engine import regulatory_assessment
 from src.risk_engine import analyze
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
 
 
 @app.get("/")
@@ -45,6 +48,32 @@ def patterns():
     except Exception:
         app.logger.exception("Pattern analysis failed")
         return jsonify({"error": "Pattern service temporarily unavailable."}), 500
+
+
+@app.get("/api/model-metrics")
+def model_metrics_endpoint():
+    try:
+        return jsonify(model_metrics())
+    except Exception:
+        app.logger.exception("Model metrics failed")
+        return jsonify({"error": "Model metrics temporarily unavailable."}), 500
+
+
+@app.post("/api/dataset-profile")
+def dataset_profile():
+    uploaded = request.files.get("file")
+    if not uploaded or not uploaded.filename.lower().endswith(".csv"):
+        return jsonify({"error": "Upload a CSV file."}), 400
+    try:
+        raw = uploaded.read()
+        if not raw:
+            return jsonify({"error": "The uploaded CSV is empty."}), 400
+        return jsonify(profile_csv(raw))
+    except (ValueError, UnicodeDecodeError) as exc:
+        return jsonify({"error": f"Could not parse CSV: {exc}"}), 400
+    except Exception:
+        app.logger.exception("Dataset profiling failed")
+        return jsonify({"error": "Dataset profiling temporarily unavailable."}), 500
 
 
 @app.post("/api/ecological-risk")
@@ -90,7 +119,6 @@ def regulatory():
 
 @app.post("/api/report")
 def report():
-    """Generate a compact educational assessment report from a completed analysis."""
     payload = request.get_json(silent=True) or {}
     if not payload.get("risk"):
         return jsonify({"error": "Complete a risk analysis before generating a report."}), 400
@@ -146,6 +174,11 @@ def report():
     pdf.save()
     buffer.seek(0)
     return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name="genova-assessment.pdf")
+
+
+@app.errorhandler(413)
+def too_large(_error):
+    return jsonify({"error": "CSV upload is limited to 2 MB."}), 413
 
 
 if __name__ == "__main__":
