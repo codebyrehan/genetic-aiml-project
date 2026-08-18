@@ -80,3 +80,19 @@ def test_regulatory_validation(client):
         "ethical_flags": 0,
     })
     assert response.status_code == 400
+
+
+def test_report_requires_analysis(client):
+    response = client.post("/api/report", json={})
+    assert response.status_code == 400
+
+
+def test_report_generation(client):
+    response = client.post("/api/report", json={
+        "risk": {"risk_score": 42.0, "label": "MODERATE", "model": "Random Forest", "confidence": 88.0},
+        "ecological": {"score": 30.0, "label": "LOW"},
+        "regulatory": {"regulatory_signal": 35.0, "level": "LOW", "recommendation": "Review"},
+    })
+    assert response.status_code == 200
+    assert response.mimetype == "application/pdf"
+    assert response.data.startswith(b"%PDF")
