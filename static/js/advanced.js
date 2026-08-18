@@ -2,6 +2,9 @@
   const $ = id => document.getElementById(id);
   const esc = value => String(value).replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
+  const css = document.createElement('link');
+  css.rel = 'stylesheet'; css.href = '/static/css/advanced.css'; document.head.appendChild(css);
+
   function section(title, eyebrow, copy, body) {
     const el = document.createElement('section');
     el.className = 'section-shell section-block advanced-section';
@@ -11,7 +14,7 @@
 
   function addExplainability() {
     if (!$('analyzer') || $('explainability')) return;
-    const el = section('Why did Genova score it this way?', 'EXPLAINABLE AI', 'Feature contribution is shown as a model signal, not causal proof.', `<div id="explainability" class="panel explain-panel"><div class="explain-empty">Run the analyzer to populate feature contributions.</div></div>`);
+    const el = section('Why did Genova score it this way?', 'EXPLAINABLE AI', 'Feature contribution is a model signal, not causal proof.', `<div id="explainability" class="panel explain-panel"><div class="explain-empty">Run the analyzer to populate feature contributions.</div></div>`);
     $('analyzer').parentNode.insertBefore(el, $('dashboard'));
   }
 
@@ -23,6 +26,16 @@
     panel.innerHTML = rows.map(([key,value]) => `<div class="explain-row"><div><strong>${labels[key] || key}</strong><span>${(value * 100).toFixed(1)}% relative importance</span></div><div class="meter"><i style="width:${Math.min(100, value * 100)}%"></i></div></div>`).join('') + `<div class="explain-note"><strong>Interpretation guardrail</strong><span>Feature importance describes how the trained synthetic model uses features. It does not establish biological causation.</span></div>`;
   }
 
+  async function refreshExplainability() {
+    const form = $('risk-form');
+    if (!form) return;
+    try {
+      const payload = {mismatches:+$('mismatches').value,pam_correct:$('pam').checked,in_exon:$('exon').checked,conservation_score:+$('conservation').value,gc_content:+$('gc').value};
+      const response = await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      if (response.ok) renderExplainability(await response.json());
+    } catch (_) {}
+  }
+
   function addModelLab() {
     if ($('model-lab')) return;
     const el = section('Model Intelligence', 'MODEL PERFORMANCE', 'A deterministic synthetic benchmark makes the ML pipeline inspectable instead of hiding performance behind a single prediction.', `<div id="model-lab" class="model-lab-grid"><div class="panel model-summary"><div class="loading">Loading benchmark…</div></div><div class="panel confusion-panel"><h3>Confusion matrix</h3><div id="confusion-matrix" class="matrix"></div></div></div>`);
@@ -32,14 +45,13 @@
       if (data.error) throw Error(data.error);
       const m = data.metrics;
       $('model-lab').querySelector('.model-summary').innerHTML = `<div class="metric-grid">${Object.entries(m).map(([k,v]) => `<div><span>${esc(k)}</span><strong>${v}%</strong></div>`).join('')}</div><p class="lab-note">${data.dataset_size.toLocaleString()} synthetic rows · ${data.split} · Random Forest · reproducible seed 42.</p>`;
-      const matrix = data.confusion_matrix;
-      $('confusion-matrix').innerHTML = `<div class="matrix-head"><span></span><span>Pred 0</span><span>Pred 1</span></div>${matrix.map((row,i) => `<div class="matrix-row"><b>Actual ${i}</b>${row.map(v => `<strong>${v}</strong>`).join('')}</div>`).join('')}`;
+      $('confusion-matrix').innerHTML = `<div class="matrix-head"><span></span><span>Pred 0</span><span>Pred 1</span></div>${data.confusion_matrix.map((row,i) => `<div class="matrix-row"><b>Actual ${i}</b>${row.map(v => `<strong>${v}</strong>`).join('')}</div>`).join('')}`;
     }).catch(err => $('model-lab').querySelector('.model-summary').innerHTML = `<div class="error-state">${esc(err.message)}</div>`);
   }
 
   function addDatasetStudio() {
     if ($('dataset-studio')) return;
-    const el = section('Research Dataset Studio', 'DATASET INTELLIGENCE', 'Profile a CSV locally through the server endpoint. The uploaded file is analyzed in memory and is not persisted by this feature.', `<div id="dataset-studio" class="panel dataset-panel"><div class="upload-row"><label class="upload-control">Choose CSV<input id="dataset-file" type="file" accept=".csv,text/csv"></label><button class="primary-btn" id="profile-dataset" type="button">Profile Dataset →</button><span id="dataset-state">READY</span></div><div id="dataset-output" class="dataset-output"><p>Supported research features: mismatches, PAM correctness, exon location, conservation score and GC content.</p></div></div>`);
+    const el = section('Research Dataset Studio', 'DATASET INTELLIGENCE', 'Profile a CSV through the server endpoint. The uploaded file is analyzed in memory and is not persisted by this feature.', `<div id="dataset-studio" class="panel dataset-panel"><div class="upload-row"><label class="upload-control">Choose CSV<input id="dataset-file" type="file" accept=".csv,text/csv"></label><button class="primary-btn" id="profile-dataset" type="button">Profile Dataset →</button><span id="dataset-state">READY</span></div><div id="dataset-output" class="dataset-output"><p>Supported features: mismatches, PAM correctness, exon location, conservation score and GC content.</p></div></div>`);
     const target = document.querySelector('#patterns');
     target.parentNode.insertBefore(el, target);
     $('profile-dataset').addEventListener('click', async () => {
@@ -68,18 +80,5 @@
   addModelLab();
   addDatasetStudio();
   addPresentationMode();
-
-  const form = $('risk-form');
-  form?.addEventListener('submit', () => setTimeout(() => renderExplainability(window.latestAnalysis), 500));
-
-  // Observe the analyzer result without changing the existing stable flow.
-  const score = $('score');
-  if (score) {
-    const observer = new MutationObserver(() => {
-      const state = {feature_importance: {}};
-      ['mismatches','pam_correct','in_exon','conservation_score','gc_content'].forEach(k => state.feature_importance[k] = 0.2);
-      if (window.latestAnalysis) renderExplainability(window.latestAnalysis);
-    });
-    observer.observe(score, {childList:true, characterData:true, subtree:true});
-  }
+  $('risk-form')?.addEventListener('submit', () => setTimeout(refreshExplainability, 250));
 })();
